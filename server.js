@@ -1,9 +1,11 @@
 //Importo express
 const express = require('express');
 //Importo morgan
-
 const morgan = require('morgan')
 
+
+//Importamos mongoClient
+const {MongoClient,ObjetID} = require('mongodb')
 
 //Inicio el sv express
 const app = express();
@@ -16,171 +18,145 @@ app.use(express.json())
 //Settings de Express
 app.set('Gestion infra','Express CRUD')
 
+/* Configuracion de MONGO */
 
+const mongoURI = 'mongodb://localhost:27017/'; //Esta conf cambia segun tu config
+const client = new MongoClient(mongoURI);
+
+let productsCollection; //Variable para almacenar la colección de productos
+
+
+//Conexion a la base de datos
+
+async function connectToDB(){
+    await client.connect();
+    const db = client.db('avengersIT')//El nombre entre () es segun el nombre q le pongamos a nuestra data base
+    productsCollection = db.collection('products')//Cambia 'products' al nombre de tu colección
+}
+
+//Manejo de errores de conexion a la base de datos
+
+connectToDB().catch(error=>console.log('Error en la conexion a la base de datos, nombre de error: '+ error))
 
 //Productos
-
 const products = []
 
 
 //Configuracion de las rutas
 
 
-app.get('/products',(req,res)=>{
-    res.json(products)
-})
+app.get('/products',async (req,res)=>{
+    try{
+        const products = await productsCollection.find().toArray();
+        res.json(products)
+    }catch(error){
+        console.log('Error al obtener los productos:', error);
+        res.status(500).json({error:'Ocurrio un error en el servidor.'})
+    }
+});
 
 // Definimos una ruta para manejar solicitudes POST a /products
-app.post('/products',(req,res)=>{
+app.post('/products', async (req,res) => {
     try{
-        //Verificamos si se proporcionaron los campos requeridos en el cuerpo
         const {name,price} = req.body;
         if (!name || !price) {
-            //Si falta el nombre o el precio, respondemos con un mensaje de error
-            return res.status(400).json({error:'Los datos ingresados no son validos'})
+            return res.status(400).json({error:'Nombre y precio son campos requeridos'})
         }
 
-        //Creamos un nuevo objeto de producto con los datos del cuerpo de la req
-        const newProduct ={
-            id: products.length+1,//Asignamos un ID unico que se basa en la cantidad de productos
-            name,// Usamos el nombre proporcionado en el cuerpo
-            price//Usamos el precio propocionado en el cuerpo
-        };
+        const newProduct = {name,price};
+        const result = await productsCollection.insertOne(newProduct);
 
-        //Agregamos el producto nuevo a la lista de productos existentes
-        products.push(newProduct);
-        
-        //Respondemos con el nuevo producto en JSON
-        res.status(201).json(newProduct);
-    } catch(error){
-
-        //En caso de error, mostramos un msj de error en la consola 
-        console.log('Error al cargar el producto, intente de nuevo.' + error)
-        
-        //Respondemos con un msj de error y un estado de error interno del SV
-        res.status(500).json({error:'Ocurrio un error en el servidor'})
+    }catch(error){
+        console.log('Error al crear el producto: ', error);
+        res.status(500).json({error:'Ocurrio un error en el servidor.'})
     }
+
     
-})
+});
 
 // Definimos una ruta para manejar solicitudes GET a /products/:id
-app.get('/products/:id',(req,res) => {
-    // Obtenemos el valor del parámetro "id" de la URL
-    const productId = parseInt(req.params.id);
+app.get('/products/:id', async (req,res) => {
 
-    // Buscamos un producto en la lista de productos que tenga el mismo ID que el valor obtenido
-    const productFound = products.find(product=>product.id === productId);
-
-    // Verificamos si encontramos un producto con el ID proporcionado
-    if (productFound) {
-        // Si encontramos el producto, lo mostramos en la consola
-        console.log(productFound);
-        // Respondemos a la solicitud con el producto encontrado en formato JSON
-        res.json(productFound);
-    } else{
-        // Si no encontramos el producto, mostramos un mensaje de error en la consola
-        console.log(`El id ${productId} no se encuentra`);
-        // Respondemos a la solicitud con un estado de error (código 400) y un mensaje JSON indicando que el producto no fue encontrado
-        res.status(400).json({error:'Producto no encontrado'})
-    }
+    try{
+        const productId = ObjetID(req.params.id);
+        const product = await productsCollection.findOne({_id:productId});
+        
+        if (product) {
+            res.json(product);
+        }else{
+            res.status(400).json({error:'Producto no encontrado'})
+        }
     
+    }catch(error){
+        console.log('Error al obtener el producto por ID:', error);
+        res.status(500).json({error:'Ocurrio un error en el servidor.'})
+    }
+
 })
 
 //Definimos una ruta para manejar solicitudes PUT a /products
-app.put('/products/:id',(req,res)=>{
+app.put('/products/:id', async (req,res)=>{
     try{
-        //Obtenemos el ID del producto a actualizar desde los parámetros de la URL
-        const productId = parseInt(req.params.id);
+        const productId = ObjetID(req.params.id);
+        const {name,price} = req.body;
+        if (!name || !price) {
+            return res.status(400).json({error:'Nombre y precio es obligatorio'})
+        }
 
-        // Buscamos el índice del producto que coincide con el ID en la lista de productos
-        const productFound = products.findIndex(p=>p.id === productId);
+        const result = await productsCollection.upDateOne(
+            {_id:productId},
+            {$set:{name,price}}
+        );
 
-        // Verificamos si encontramos el producto para actualizar
-        if (productFound !== -1) {
-            //Usamos destructuración para obtener los campos a actualizar del cuerpo de la solicitud
-            const{name,price} = req.body
-
-            // Verificamos si se proporcionaron los campos requeridos en el cuerpo
-            if (!name || !price) {
-                return res.status(400).json({error:'Nombre y precio son campos requeridos'})
-            }
-            
-            // Usamos la función map para crear una nueva lista de productos
-            const updateProducts = products.map((product,index)=>{
-                //si el indice coincide con el indice del producto a actualizar,modificamos los campos
-                if (index === productFound) {
-                    return{
-                        ... product, //Mantenemos los campos existentes del producto
-                        name, //Actualizamos el nombre con el nuevo valor
-                        price //Actualizamos el precio con el nuevo valor
-                    };
-                }
-                
-                return product; //Mantenemos los otros productos sin cambios
-            });
-
-            //Reemplazamos la lista de productos con la lista actualizada
-            products = updateProducts;
-
-            //Respondemos con un msj indicando que el producto se actualizo con exito
-
-            res.status(200).json({update:'Producto actualizado con exito'});
-        } else {
-            //Si no encontramos el producto, respondemos con un msj de error
+        if (result.modifiedCount === 1) {
+            res.json({message:'Producto actualizado correctamente'})
+        } else{
             res.status(404).json({error:'Producto no encontrado para actualizar'})
         }
 
-    }catch (error){
-        //En caso de error, mostramos un msj de error en la consola
-        console.log('Error al procesar la solicitud PUT' + error);
-
-        //Respondemos con un mensaje de error y un estado de error interno del SV
-        res.status(500).json({error:'Ocurrio un error en el servidor :('})
+    }catch(error){
+        console.log('Error al actualizar producto: ',error )
+        res.status(500).json({error:'Ocurrio un error en el servidor'})
     }
 })
 
 
 // Definimos una ruta para manejar solicitudes DELETE a /products/:id
-app.delete('/products/:id',(req,res)=>{
+app.delete('/products/:id', async (req,res)=>{
 
     try{
-        // Obtenemos el ID del producto a eliminar desde los parámetros de la URL
-        const productId = parseInt(req.params.id);     
-
-        // Buscamos el producto que coincide con el ID en la lista de productos
-        const productFound = products.find(product => product.id === productId);
-
-        // Verificamos si encontramos el producto para eliminar
-        if (productFound !== -1) {
-            // Usamos el método splice para eliminar el producto de la lista
-            products.splice(productFound, 1);
-
-            //Mostramos en consola la nueva lista de prods sin el prod eliminado
-            console.log(products);
-
-            //Respondemos con un mensaje indicando que el producto se elimino con exito
-            res.send('Producto eliminado con exito.');
+        const productId = ObjetID(req.params.id);
+        const result = await productsCollection.deleteOne({_id:productId});
+    
+        if (result.deleteCount === 1) {
+            res.send('Producto eliminado exitosamente.')
         } else{
-            //Si no encontramos el producto, respondemos con un msj de error 
-            res.status(404).json({error:'El producto no se encuentra en stock'})
+            res.status(400).json({error:'Producto no encontrado para eliminar.'})
         }
     } catch (error){
-        //En caso de error, mostramos un mensaje de error 
-        res.status(400).json({error:'Error al procesar la solicitud de eliminado'})
-        
-        //Respondemos con un mensaje de error y un estado de error interno del SV
-        res.status(500).json({error:'Hubo un error en el servidor'})
+        console.log('Error al eliminar el producto: ',error);
+        res.status(500).json({error:'Ocurrio un error en el servidor'})
     }
-
 });
 
 
+//El sv se abre en el puerto 4000 (o cualquier otro número de puerto)
+const PORT = 4000;
+app.listen(PORT, () => {
+    console.log('Server on port', PORT);
+});
 
-//El sv se abre en el puerto 4k
-const PORT = 4000
-app.listen(PORT);
-console.log('Server on port'+ PORT);
+// Manejo de cierre de la conexión a la base de datos al apagar el servidor
+process.on('SIGINT', async () => {
+    try {
+        await client.close();
+        console.log('Conexión a la base de datos cerrada');
+        process.exit(0);
+    } catch (error) {
+        console.error('Error al cerrar la conexión a la base de datos:', error);
+        process.exit(1);
+    }
+});
 
-//Como ver el setting del SV
-
-console.log(`Server ${app.get('Gestion infra')} on port ${PORT}`)
+// Muestra un mensaje indicando que el servidor está en funcionamiento
+console.log(`Server is running on port ${PORT}`);
