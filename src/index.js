@@ -3,8 +3,20 @@ const express = require('express');
 const app = express();
 
 
-app.get('/products',(req,res)=>{
-    res.send('Lista de productos')
+//Agregar metodos HTTP al servidor express
+
+app.post('/user',(req,res)=>{
+    //Como nos envia un json el cliente
+
+
+    res.send('Nuevo user creado')
+})
+
+    
+
+
+app.get('/isAlive',(req,res)=>{
+    res.sendStatus(200)
 })
 
 
