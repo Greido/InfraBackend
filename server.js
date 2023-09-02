@@ -4,8 +4,22 @@ const express = require('express');
 const morgan = require('morgan')
 
 
-//Importamos mongoClient
-const {MongoClient,ObjetID} = require('mongodb')
+//Conectandone a mongoose
+const mongoose = require('mongoose')
+
+
+//Conexion a DB
+const user = 'juampi-user';
+
+const password = 'loba';
+
+const db = 'infra';
+
+const uri = `mongodb+srv://${user}:${password}@cluster0.vd4xrh0.mongodb.net/${db}?retryWrites=true&w=majority`;
+
+mongoose.connect(uri,)
+    .then(()=>console.log('Base de datos conectada.'))
+    .catch(e=> console.log(e));
 
 //Inicio el sv express
 const app = express();
@@ -18,33 +32,14 @@ app.use(express.json())
 //Settings de Express
 app.set('Gestion infra','Express CRUD')
 
-/* Configuracion de MONGO */
-
-const mongoURI = 'mongodb://localhost:27017/'; //Esta conf cambia segun tu config
-const client = new MongoClient(mongoURI);
 
 let productsCollection; //Variable para almacenar la colección de productos
-
-
-//Conexion a la base de datos
-
-async function connectToDB(){
-    await client.connect();
-    const db = client.db('avengersIT')//El nombre entre () es segun el nombre q le pongamos a nuestra data base
-    productsCollection = db.collection('products')//Cambia 'products' al nombre de tu colección
-}
-
-//Manejo de errores de conexion a la base de datos
-
-connectToDB().catch(error=>console.log('Error en la conexion a la base de datos, nombre de error: '+ error))
 
 //Productos
 const products = []
 
 
 //Configuracion de las rutas
-
-
 app.get('/products',async (req,res)=>{
     try{
         const products = await productsCollection.find().toArray();
