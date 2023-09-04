@@ -1,5 +1,5 @@
-const moongose = require('mongoose');
-const Schema = moongoose.Schema;
+const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
 const serversSchema = new Schema({
     nombre: String,
@@ -10,6 +10,6 @@ const serversSchema = new Schema({
 });
 
 //Modelo
-const Server = moongose.model('server',serversSchema);
+const Server = mongoose.model('server',serversSchema);
 
 module.exports = Server;
